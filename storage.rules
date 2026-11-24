@@ -1,0 +1,19 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() {
+      return signedIn() && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Admin-uploaded learning material
+    match /content/{allPaths=**} { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /courses/{allPaths=**} { allow read: if signedIn(); allow write: if isAdmin(); }
+
+    // Student assignment uploads (own folder only, max 20 MB)
+    match /submissions/{uid}/{file} {
+      allow read: if request.auth.uid == uid || isAdmin();
+      allow write: if request.auth.uid == uid && request.resource.size < 20 * 1024 * 1024;
+    }
+  }
+}
